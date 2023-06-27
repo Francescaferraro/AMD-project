@@ -278,19 +278,15 @@ similar_pairs = find_similar_sentences(tfidf_normalized_tokens, threshold, cosin
 original = random.choice(original_sentences)
 similarity = show_similarity(original, similar_pairs)
 
-# Jaccard Distance = 1- jaccard similarity
-
+# Jaccard Distance = 1 - jaccard similarity
 def jaccard_distance(s1, s2):
-    crossed = []
-    for element in s1:
-        if element in s2:
-            crossed.append(element)
-            s2.remove(element)
-    joined = s1 + s2
-    # Check if the union is empty
-    if len(joined) == 0:
-        return 0
-    jaccard_similarity = len(crossed) / len(joined)
+    set1 = set(s1)
+    set2 = set(s2)
+    intersection = set1.intersection(set2)
+    union = set1.union(set2)
+    if len(union) == 0:
+        return 0 
+    jaccard_similarity = len(intersection) / len(union)
     return 1 - jaccard_similarity
 
 # Using bag of words vectorization
