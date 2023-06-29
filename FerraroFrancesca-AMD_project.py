@@ -39,28 +39,35 @@ with zipfile.ZipFile(zip_path, 'r') as zip_ref:
 
 
 # Load the Yelp dataset JSON file into a DataFrame
+def load_tokenized_dataset(subset_size) :
+  # I choose to include in the DataFrame only the text field
+  cols = ['text']
+  data = []
+  count=0
 
-subset_size = 1500 #drastically reduced
+  with open(json_path) as f:
+      for line in f:
+        if count==subset_size :
+          break
+        doc = json.loads(line)
+        #print(doc)
+        lst = [doc['text']]
+        data.append(lst)
+        count+=1
 
-# I choose to include in the DataFrame only the text field
-cols = ['text']
-data = []
-count=0
+  df = pd.DataFrame(data=data, columns=cols)
 
-with open(json_path) as f:
-    for line in f:
-      if count==subset_size :
-        break
-      doc = json.loads(line)
-      #print(doc)
-      lst = [doc['text']]
-      data.append(lst)
-      count+=1
+  tokens = []
+  original_sentences = []
+  for index, row in df.iterrows():
+        review = row['text']
+        original_sentences.append(review)
+        tokens.append(tokenize(review))
+  return tokens, original_sentences
 
-df = pd.DataFrame(data=data, columns=cols)
-
-# Print the DataFrame
-#print(df)
+load = load_tokenized_dataset(69902) #1% of the dataset original size
+tokens = load[0]
+original_sentences = load[1]
 
 # Data Preprocessing
 #Tokenization and Stopwords removal
@@ -126,7 +133,86 @@ def stem_tokens(words):
 stem_tokens(tokens)
 print(tokens)
 
-# Vectorization and Normalization
+#SCALABLE APPROACH
+
+#Step 1 : k-shingles
+def create_shingles(tokens, k=4):
+    k = min(k, len(tokens))
+    return set(' '.join(tokens[i:i+k]) for i in range(len(tokens) - k + 1))
+
+shingle_sets = [create_shingles(tokens) for tokens in tokens]
+
+#Step 2 : min-hashing
+def initialize_minhash(num_perm=128):
+    return np.full(num_perm, np.inf)
+
+def update_minhash(hash_values, shingle, num_perm=128):
+    for i in range(num_perm):
+        hash_val = int(hashlib.sha1((str(i) + shingle).encode('utf-8')).hexdigest(), 16)
+        if hash_val < hash_values[i]:
+            hash_values[i] = hash_val
+
+minhash_signatures = []
+for shingle_set in shingle_sets:
+    hash_values = initialize_minhash()
+    for shingle in shingle_set:
+        update_minhash(hash_values, shingle)
+    minhash_signatures.append(hash_values)
+
+#Step 3 : Locality sensitive hashing
+def lsh(minhash_signatures, num_bands=4):
+    buckets = {}
+    for i, minhash in enumerate(minhash_signatures):
+        for band in range(num_bands):
+            key = tuple(minhash[band::num_bands])
+            if key not in buckets:
+                buckets[key] = set()
+            buckets[key].add(i)
+    return buckets
+
+buckets = lsh(minhash_signatures)
+
+#Step 4 : compute jaccard similarity 
+def jaccard_similarity(s1, s2): 
+    set1 = set(s1)
+    set2 = set(s2)
+    intersection = set1.intersection(set2)
+    union = set1.union(set2)
+
+    if len(union) == 0:
+        return 0
+    else :
+      return len(intersection) / len(union)
+
+# Compute similarity
+similar_pairs = []
+for bucket in buckets.values():
+  if len(bucket) > 1:
+    bucket_list = list(bucket)  # Convert the set to a list
+    #print(bucket_list)
+    for i in range(len(bucket_list)):
+      for j in range(len(bucket_list)):
+          if i != j:
+              similarity = jaccard_similarity(list(shingle_sets[bucket_list[i]]), list(shingle_sets[bucket_list[j]]))
+              pair = (original_sentences[bucket_list[i]], original_sentences[bucket_list[j]], similarity)
+              reverse_pair = (original_sentences[bucket_list[j]], original_sentences[bucket_list[i]], similarity)
+              if 0.5 < similarity < 1 and bucket_list[i] < bucket_list[j] :
+                  #print(bucket_list[i], bucket_list[j])
+                  similar_pairs.append(pair)
+                  if reverse_pair in similar_pairs :
+                    similar_pairs.remove(pair)
+
+print("Similar reviews pairs:")
+for pair in similar_pairs:
+    sentence1, sentence2, similarity = pair
+    print(f"Review 1: {sentence1}\nReview 2: {sentence2}\nSimilarity: {similarity:.2f}\n\n")
+
+
+# "BRUTE FORCE" APPROACH 
+
+tokens = load_tokenized_dataset(1500)[0] #drasticalaly reduced
+
+#Vectorization and Normalization
 
 def normalize_vectors(vectors):
     normalized_vectors = []
@@ -280,14 +366,7 @@ similarity = show_similarity(original, similar_pairs)
 
 # Jaccard Distance = 1 - jaccard similarity
 def jaccard_distance(s1, s2):
-    set1 = set(s1)
-    set2 = set(s2)
-    intersection = set1.intersection(set2)
-    union = set1.union(set2)
-    if len(union) == 0:
-        return 0 
-    jaccard_similarity = len(intersection) / len(union)
-    return 1 - jaccard_similarity
+    return 1 - jaccard_similarity(s1, s2)
 
 # Using bag of words vectorization
 
