@@ -16,6 +16,7 @@ import math
 import matplotlib.pyplot as plt
 import random
 import builtins
+import hashlib
 
 #STEP 1 : Dataset loading
 
@@ -37,6 +38,19 @@ json_path = 'yelp_academic_dataset_review.json'
 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
     zip_ref.extract(json_path)
 
+# Data Preprocessing
+#Tokenization and Stopwords removal
+
+!kaggle datasets download -d rowhitswami/stopwords
+
+with zipfile.ZipFile('/content/stopwords.zip', 'r') as zip_ref:
+    zip_ref.extractall('/content/')
+
+with open('/content/stopwords.txt', 'r') as f:
+    stopwords = [line.strip() for line in f]
+
+def tokenize(string):
+      return [s for s in re.split(r'[^\w]', string.lower()) if s != '' and s not in stopwords]
 
 # Load the Yelp dataset JSON file into a DataFrame
 def load_tokenized_dataset(subset_size) :
@@ -68,27 +82,6 @@ def load_tokenized_dataset(subset_size) :
 load = load_tokenized_dataset(69902) #1% of the dataset original size
 tokens = load[0]
 original_sentences = load[1]
-
-# Data Preprocessing
-#Tokenization and Stopwords removal
-
-!kaggle datasets download -d rowhitswami/stopwords
-
-with zipfile.ZipFile('/content/stopwords.zip', 'r') as zip_ref:
-    zip_ref.extractall('/content/')
-
-with open('/content/stopwords.txt', 'r') as f:
-    stopwords = [line.strip() for line in f]
-
-def tokenize(string):
-      return [s for s in re.split(r'[^\w]', string.lower()) if s != '' and s not in stopwords]
-
-tokens = []
-original_sentences = []
-for index, row in df.iterrows():
-      review = row['text']
-      original_sentences.append(review)
-      tokens.append(tokenize(review))
 
 # Stemming
 
