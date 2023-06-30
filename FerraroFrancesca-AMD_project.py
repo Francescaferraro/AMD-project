@@ -129,11 +129,11 @@ print(tokens)
 #SCALABLE APPROACH
 
 #Step 1 : k-shingles
-def create_shingles(tokens, k=4):
-    k = min(k, len(tokens))
-    return set(' '.join(tokens[i:i+k]) for i in range(len(tokens) - k + 1))
+def create_shingles(tokens_list, k=4):
+    k = min(k, len(tokens_list))
+    return set(' '.join(tokens_list[i:i+k]) for i in range(len(tokens_list) - k + 1))
 
-shingle_sets = [create_shingles(tokens) for tokens in tokens]
+shingle_sets = [create_shingles(tokens_list) for tokens_list in tokens]
 
 #Step 2 : min-hashing
 def initialize_minhash(num_perm=128):
